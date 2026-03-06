@@ -26,8 +26,11 @@ To bundle FFmpeg with the installer:
 
 2. Extract and find `ffmpeg.exe`
 
-3. Rename it to: `ffmpeg-x86_64-pc-windows-msvc.exe`
-   - This is Tauri's expected naming convention for external binaries
+3. Rename it to match your target architecture:
+   - Windows (x64): `ffmpeg-x86_64-pc-windows-msvc.exe`
+   - macOS (Intel): `ffmpeg-x86_64-apple-darwin`
+   - macOS (Apple Silicon): `ffmpeg-aarch64-apple-darwin`
+   - Linux (x64): `ffmpeg-x86_64-unknown-linux-gnu`
 
 4. Place it in this directory
 

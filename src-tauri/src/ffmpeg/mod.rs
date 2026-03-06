@@ -91,64 +91,63 @@ impl FfmpegLocator {
         None
     }
 
+    /// Get the expected name for the bundled FFmpeg binary based on platform
+    fn get_binary_names() -> Vec<String> {
+        let mut names = vec!["ffmpeg".to_string()];
+        
+        #[cfg(target_os = "windows")]
+        names.push("ffmpeg.exe".to_string());
+
+        let arch = std::env::consts::ARCH;
+        let os = std::env::consts::OS;
+        
+        let triple = match (os, arch) {
+            ("windows", "x86_64") => Some("x86_64-pc-windows-msvc"),
+            ("macos", "x86_64") => Some("x86_64-apple-darwin"),
+            ("macos", "aarch64") => Some("aarch64-apple-darwin"),
+            ("linux", "x86_64") => Some("x86_64-unknown-linux-gnu"),
+            _ => None,
+        };
+
+        if let Some(t) = triple {
+            names.push(format!("ffmpeg-{}", t));
+            #[cfg(target_os = "windows")]
+            names.push(format!("ffmpeg-{}.exe", t));
+        }
+        
+        names
+    }
+
     /// Check for FFmpeg bundled with the app (same directory as executable)
     fn find_bundled_ffmpeg() -> Option<PathBuf> {
+        let binary_names = Self::get_binary_names();
+        
         if let Ok(exe_path) = std::env::current_exe() {
             debug!("  Current exe path: {:?}", exe_path);
             if let Some(exe_dir) = exe_path.parent() {
                 debug!("  Exe directory: {:?}", exe_dir);
-                let bundled = exe_dir.join("ffmpeg.exe");
-                debug!("  Looking for bundled FFmpeg at: {:?}", bundled);
-                debug!("  Exists: {}", bundled.exists());
-                if bundled.exists() {
-                    return Some(bundled);
-                }
-
-                let sidecar = exe_dir.join("ffmpeg-x86_64-pc-windows-msvc.exe");
-                debug!(
-                    "  Looking for bundled FFmpeg sidecar at: {:?}",
-                    sidecar
-                );
-                debug!("  Exists: {}", sidecar.exists());
-                if sidecar.exists() {
-                    return Some(sidecar);
+                
+                for name in &binary_names {
+                    let path = exe_dir.join(name);
+                    debug!("  Looking for bundled FFmpeg at: {:?}", path);
+                    if path.exists() {
+                        return Some(path);
+                    }
                 }
 
                 if let Some(project_dir) = exe_dir.parent().and_then(|p| p.parent()) {
-                    let dev_sidecar = project_dir.join("ffmpeg-x86_64-pc-windows-msvc.exe");
-                    debug!(
-                        "  Looking for dev FFmpeg sidecar at: {:?}",
-                        dev_sidecar
-                    );
-                    debug!("  Exists: {}", dev_sidecar.exists());
-                    if dev_sidecar.exists() {
-                        return Some(dev_sidecar);
-                    }
+                    for name in &binary_names {
+                        let dev_path = project_dir.join(name);
+                        debug!("  Looking for dev FFmpeg at: {:?}", dev_path);
+                        if dev_path.exists() {
+                            return Some(dev_path);
+                        }
 
-                    let dev_ffmpeg = project_dir.join("ffmpeg.exe");
-                    debug!("  Looking for dev FFmpeg at: {:?}", dev_ffmpeg);
-                    debug!("  Exists: {}", dev_ffmpeg.exists());
-                    if dev_ffmpeg.exists() {
-                        return Some(dev_ffmpeg);
-                    }
-
-                    let bin_sidecar = project_dir
-                        .join("bin")
-                        .join("ffmpeg-x86_64-pc-windows-msvc.exe");
-                    debug!(
-                        "  Looking for bin FFmpeg sidecar at: {:?}",
-                        bin_sidecar
-                    );
-                    debug!("  Exists: {}", bin_sidecar.exists());
-                    if bin_sidecar.exists() {
-                        return Some(bin_sidecar);
-                    }
-
-                    let bin_ffmpeg = project_dir.join("bin").join("ffmpeg.exe");
-                    debug!("  Looking for bin FFmpeg at: {:?}", bin_ffmpeg);
-                    debug!("  Exists: {}", bin_ffmpeg.exists());
-                    if bin_ffmpeg.exists() {
-                        return Some(bin_ffmpeg);
+                        let bin_path = project_dir.join("bin").join(name);
+                        debug!("  Looking for bin FFmpeg at: {:?}", bin_path);
+                        if bin_path.exists() {
+                            return Some(bin_path);
+                        }
                     }
                 }
             }
@@ -291,8 +290,7 @@ impl FfmpegLocator {
 
     /// Check app's data directory for downloaded FFmpeg
     async fn find_in_app_data() -> Option<PathBuf> {
-        if let Ok(app_dir) = FfmpegDownloader::get_ffmpeg_app_dir() {
-            let ffmpeg_path = app_dir.join("ffmpeg.exe");
+        if let Ok(ffmpeg_path) = FfmpegDownloader::get_ffmpeg_path() {
             if ffmpeg_path.exists() {
                 return Some(ffmpeg_path);
             }
@@ -1243,12 +1241,18 @@ impl FfmpegDownloader {
 
     pub fn get_ffmpeg_path() -> Result<PathBuf, AppError> {
         let app_dir = Self::get_ffmpeg_app_dir()?;
-        Ok(app_dir.join("ffmpeg.exe"))
+        #[cfg(target_os = "windows")]
+        return Ok(app_dir.join("ffmpeg.exe"));
+        #[cfg(not(target_os = "windows"))]
+        return Ok(app_dir.join("ffmpeg"));
     }
 
     pub fn get_ffprobe_path() -> Result<PathBuf, AppError> {
         let app_dir = Self::get_ffmpeg_app_dir()?;
-        Ok(app_dir.join("ffprobe.exe"))
+        #[cfg(target_os = "windows")]
+        return Ok(app_dir.join("ffprobe.exe"));
+        #[cfg(not(target_os = "windows"))]
+        return Ok(app_dir.join("ffprobe"));
     }
 
     pub async fn is_ffmpeg_available() -> bool {
@@ -1268,65 +1272,73 @@ impl FfmpegDownloader {
     where
         F: Fn(u64, u64) + Send + 'static,
     {
-        let app_dir = Self::get_ffmpeg_app_dir()?;
-        let ffmpeg_path = app_dir.join("ffmpeg.exe");
-
-        // Check if already exists
-        if ffmpeg_path.exists() {
-            return Ok(ffmpeg_path);
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err(AppError::Ffmpeg("Auto-download is only supported on Windows. Please install FFmpeg via Homebrew (brew install ffmpeg) or your package manager.".to_string()));
         }
 
-        // Create directory if needed
-        fs::create_dir_all(&app_dir)
-            .await
-            .map_err(|e| AppError::Io(e.to_string()))?;
+        #[cfg(target_os = "windows")]
+        {
+            let app_dir = Self::get_ffmpeg_app_dir()?;
+            let ffmpeg_path = app_dir.join("ffmpeg.exe");
 
-        let zip_url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
-        let zip_path = app_dir.join("ffmpeg.zip");
+            // Check if already exists
+            if ffmpeg_path.exists() {
+                return Ok(ffmpeg_path);
+            }
 
-        // Download the zip file with progress
-        let client = reqwest::Client::new();
-        let response = client
-            .get(zip_url)
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to download FFmpeg: {}", e)))?;
-
-        let total_size = response.content_length().unwrap_or(0);
-        let mut downloaded = 0u64;
-
-        let mut file = fs::File::create(&zip_path)
-            .await
-            .map_err(|e| AppError::Io(e.to_string()))?;
-
-        let mut stream = response.bytes_stream();
-
-        while let Some(chunk) = stream.next().await {
-            let chunk =
-                chunk.map_err(|e| AppError::Internal(format!("Download error: {}", e)))?;
-            file.write_all(&chunk)
+            // Create directory if needed
+            fs::create_dir_all(&app_dir)
                 .await
                 .map_err(|e| AppError::Io(e.to_string()))?;
-            downloaded += chunk.len() as u64;
-            progress_callback(downloaded, total_size);
+
+            let zip_url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
+            let zip_path = app_dir.join("ffmpeg.zip");
+
+            // Download the zip file with progress
+            let client = reqwest::Client::new();
+            let response = client
+                .get(zip_url)
+                .send()
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to download FFmpeg: {}", e)))?;
+
+            let total_size = response.content_length().unwrap_or(0);
+            let mut downloaded = 0u64;
+
+            let mut file = fs::File::create(&zip_path)
+                .await
+                .map_err(|e| AppError::Io(e.to_string()))?;
+
+            let mut stream = response.bytes_stream();
+
+            while let Some(chunk) = stream.next().await {
+                let chunk =
+                    chunk.map_err(|e| AppError::Internal(format!("Download error: {}", e)))?;
+                file.write_all(&chunk)
+                    .await
+                    .map_err(|e| AppError::Io(e.to_string()))?;
+                downloaded += chunk.len() as u64;
+                progress_callback(downloaded, total_size);
+            }
+
+            file.flush()
+                .await
+                .map_err(|e| AppError::Io(e.to_string()))?;
+            drop(file);
+
+            // Extract the zip file
+            Self::extract_ffmpeg(&zip_path, &app_dir).await?;
+
+            // Clean up zip file
+            let _ = fs::remove_file(&zip_path).await;
+
+            if !ffmpeg_path.exists() {
+                return Err(AppError::Ffmpeg("FFmpeg extraction failed".to_string()));
+            }
+
+            Ok(ffmpeg_path)
         }
-
-        file.flush()
-            .await
-            .map_err(|e| AppError::Io(e.to_string()))?;
-        drop(file);
-
-        // Extract the zip file
-        Self::extract_ffmpeg(&zip_path, &app_dir).await?;
-
-        // Clean up zip file
-        let _ = fs::remove_file(&zip_path).await;
-
-        if !ffmpeg_path.exists() {
-            return Err(AppError::Ffmpeg("FFmpeg extraction failed".to_string()));
-        }
-
-        Ok(ffmpeg_path)
     }
 
     async fn extract_ffmpeg(zip_path: &Path, output_dir: &Path) -> Result<(), AppError> {
