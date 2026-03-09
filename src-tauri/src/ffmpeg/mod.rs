@@ -668,6 +668,9 @@ pub struct ConversionTask {
     pub cpu_threads: Option<u32>,
     pub preset: String,
     pub is_adobe_preset: bool,
+    pub rotation: u16,
+    pub flip_horizontal: bool,
+    pub flip_vertical: bool,
     pub adobe_preset: Option<AdobePreset>,
     pub progress: ConversionProgress,
     pub process: Option<Child>,
@@ -696,6 +699,9 @@ impl FfmpegManager {
         cpu_threads: Option<u32>,
         preset: String,
         is_adobe_preset: bool,
+        rotation: u16,
+        flip_horizontal: bool,
+        flip_vertical: bool,
     ) -> Result<(), AppError> {
         let duration = 0.0;
 
@@ -725,6 +731,9 @@ impl FfmpegManager {
             cpu_threads,
             preset: preset.clone(),
             is_adobe_preset,
+            rotation,
+            flip_horizontal,
+            flip_vertical,
             adobe_preset,
             progress,
             process: None,
@@ -883,6 +892,33 @@ async fn validate_output(ffmpeg_path: &str, output_file: &str) -> Option<String>
     None
 }
 
+fn build_transform_filter(rotation: u16, flip_horizontal: bool, flip_vertical: bool) -> Option<String> {
+    let mut filters: Vec<&'static str> = Vec::new();
+
+    match rotation {
+        90 => filters.push("transpose=1"),
+        180 => {
+            filters.push("transpose=1");
+            filters.push("transpose=1");
+        }
+        270 => filters.push("transpose=2"),
+        _ => {}
+    }
+
+    if flip_horizontal {
+        filters.push("hflip");
+    }
+    if flip_vertical {
+        filters.push("vflip");
+    }
+
+    if filters.is_empty() {
+        None
+    } else {
+        Some(filters.join(","))
+    }
+}
+
 async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
     let (
         input_file,
@@ -893,6 +929,9 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
         cpu_threads,
         preset,
         is_adobe_preset,
+        rotation,
+        flip_horizontal,
+        flip_vertical,
         adobe_preset,
     ) = {
         let task = task_arc.lock().expect("Failed to lock task mutex");
@@ -905,6 +944,9 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
             task.cpu_threads,
             task.preset.clone(),
             task.is_adobe_preset,
+            task.rotation,
+            task.flip_horizontal,
+            task.flip_vertical,
             task.adobe_preset.clone(),
         )
     };
@@ -915,6 +957,12 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
         .unwrap_or("mp4")
         .to_lowercase();
     let format_info = get_format_info(&output_ext);
+    let transform_filter = if format_info.supports_video {
+        build_transform_filter(rotation, flip_horizontal, flip_vertical)
+    } else {
+        None
+    };
+    let has_transform_filter = transform_filter.is_some();
 
     let is_nvenc = encoder.contains("nvenc");
     let is_amf = encoder.contains("amf");
@@ -936,7 +984,7 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
 
     for attempt in 0..max_attempts {
         let is_cpu_fallback = is_gpu_encoder && attempt == 3;
-        let use_hw_decode = is_gpu_encoder && attempt == 0;
+        let use_hw_decode = is_gpu_encoder && attempt == 0 && !has_transform_filter;
         let force_nv12 = is_gpu_encoder && attempt == 2;
 
         // Pick the encoder for this attempt.
@@ -989,6 +1037,11 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
             } else {
                 args.push("0:a:0?".to_string());
             }
+        }
+
+        if let Some(ref filter) = transform_filter {
+            args.push("-vf".to_string());
+            args.push(filter.clone());
         }
 
         if is_adobe_preset && !is_cpu_fallback {

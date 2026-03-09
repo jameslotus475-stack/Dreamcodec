@@ -552,6 +552,32 @@ body {
   flex-wrap: wrap;
 }
 
+.video-preview {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(12px);
+}
+
+.video-preview-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-preview-player {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+
 /* Empty state */
 .empty-state {
   display: flex;
@@ -591,12 +617,19 @@ body {
   border-radius: 0.75rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
+  cursor: pointer;
 }
 
 .file-item:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateX(4px);
+}
+
+.file-item-selected {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .file-icon {

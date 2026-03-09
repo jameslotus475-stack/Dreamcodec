@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -61,6 +61,8 @@ interface ConversionParams {
   gpuIndex: number | undefined;
   cpuThreads: number | undefined;
   preset: string;
+  rotation: number;
+  mirror: string;
 }
 
 interface ConversionItem {
@@ -91,6 +93,8 @@ interface PreferenceCache {
   cpuLimit: number;
   maxConcurrent: number;
   outputDir: string;
+  rotation: number;
+  mirror: string;
 }
 
 interface HardwareCache {
@@ -101,7 +105,7 @@ interface HardwareCache {
 }
 
 const readPreferenceCache = (): PreferenceCache => {
-  const defaults: PreferenceCache = { encoder: "", gpuPreference: "auto", cpuLimit: 100, maxConcurrent: 3, outputDir: "" };
+  const defaults: PreferenceCache = { encoder: "", gpuPreference: "auto", cpuLimit: 100, maxConcurrent: 3, outputDir: "", rotation: 0, mirror: "none" };
   if (typeof window === "undefined") return defaults;
 
   try {
@@ -109,6 +113,10 @@ const readPreferenceCache = (): PreferenceCache => {
     if (!raw) return defaults;
 
     const parsed = JSON.parse(raw) as Partial<PreferenceCache>;
+    const rotationCandidate = typeof parsed.rotation === "number" ? parsed.rotation : 0;
+    const rotation = [0, 90, 180, 270].includes(rotationCandidate) ? rotationCandidate : 0;
+    const mirrorCandidate = typeof parsed.mirror === "string" ? parsed.mirror : "none";
+    const mirror = ["none", "horizontal", "vertical", "both"].includes(mirrorCandidate) ? mirrorCandidate : "none";
     return {
       encoder: typeof parsed.encoder === "string" ? parsed.encoder : "",
       gpuPreference:
@@ -122,6 +130,8 @@ const readPreferenceCache = (): PreferenceCache => {
         ? parsed.maxConcurrent
         : 3,
       outputDir: typeof parsed.outputDir === "string" ? parsed.outputDir : "",
+      rotation,
+      mirror,
     };
   } catch {
     return defaults;
@@ -138,6 +148,8 @@ const writePreferenceCache = (update: Partial<PreferenceCache>) => {
     cpuLimit: update.cpuLimit ?? current.cpuLimit,
     maxConcurrent: update.maxConcurrent ?? current.maxConcurrent,
     outputDir: update.outputDir ?? current.outputDir,
+    rotation: update.rotation ?? current.rotation,
+    mirror: update.mirror ?? current.mirror,
   };
 
   try {
@@ -207,7 +219,10 @@ export default function App() {
   const [encoder, setEncoder] = useState(() => readPreferenceCache().encoder);
   const [preset, setPreset] = useState("fast");
   const [outputFormat, setOutputFormat] = useState("mp4");
+  const [rotation, setRotation] = useState(() => readPreferenceCache().rotation);
+  const [mirror, setMirror] = useState(() => readPreferenceCache().mirror);
   const [queue, setQueue] = useState<QueueFile[]>([]);
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [encoders, setEncoders] = useState<Encoder[]>([]);
   const [allEncoders, setAllEncoders] = useState<Encoder[]>([]);
   const [gpuInfo, setGpuInfo] = useState<GpuInfo | null>(null);
@@ -231,6 +246,17 @@ export default function App() {
   useEffect(() => {
     conversionsRef.current = conversions;
   }, [conversions]);
+
+  useEffect(() => {
+    if (queue.length === 0) {
+      if (previewPath) setPreviewPath(null);
+      return;
+    }
+
+    if (!previewPath || !queue.some((file) => file.path === previewPath)) {
+      setPreviewPath(queue[0].path);
+    }
+  }, [queue, previewPath]);
 
   // Auto-start next pending conversion when a slot opens up
   useEffect(() => {
@@ -262,6 +288,14 @@ export default function App() {
   useEffect(() => {
     writePreferenceCache({ maxConcurrent });
   }, [maxConcurrent]);
+
+  useEffect(() => {
+    writePreferenceCache({ rotation });
+  }, [rotation]);
+
+  useEffect(() => {
+    writePreferenceCache({ mirror });
+  }, [mirror]);
 
   const addLog = (level: "info" | "warn" | "error", message: string) => {
     invoke("log_message", { level, message });
@@ -878,6 +912,8 @@ export default function App() {
   const startPendingConversion = async (item: ConversionItem): Promise<string | null> => {
     if (!item.params) return null;
     try {
+      const flipHorizontal = item.params.mirror === "horizontal" || item.params.mirror === "both";
+      const flipVertical = item.params.mirror === "vertical" || item.params.mirror === "both";
       const taskId = await invoke<string>("start_conversion", {
         args: {
           inputFile: item.inputFile,
@@ -886,6 +922,9 @@ export default function App() {
           gpuIndex: item.params.gpuIndex,
           cpuThreads: item.params.cpuThreads,
           preset: item.params.preset,
+          rotation: item.params.rotation,
+          flipHorizontal,
+          flipVertical,
           isAdobePreset: false,
         },
       });
@@ -1006,7 +1045,7 @@ export default function App() {
     }
 
     // Build all conversion items as pending
-    const params: ConversionParams = { encoder: selectedEncoder, gpuIndex, cpuThreads, preset };
+    const params: ConversionParams = { encoder: selectedEncoder, gpuIndex, cpuThreads, preset, rotation, mirror };
     const newItems: ConversionItem[] = [];
 
     for (const file of queue) {
@@ -1194,6 +1233,28 @@ export default function App() {
             </div>
 
             <div className="form-group">
+              <label><i className="ri-repeat-2-fill"></i> Rotation</label>
+              <select className="select" value={rotation} onChange={(e) => setRotation(Number(e.target.value))}>
+                <option value={0}>0°</option>
+                <option value={90}>90°</option>
+                <option value={180}>180°</option>
+                <option value={270}>270°</option>
+              </select>
+              <p className="help-text">Applies to video outputs only</p>
+            </div>
+
+            <div className="form-group">
+              <label><i className="ri-swap-box-fill"></i> Mirror</label>
+              <select className="select" value={mirror} onChange={(e) => setMirror(e.target.value)}>
+                <option value="none">None</option>
+                <option value="horizontal">Horizontal</option>
+                <option value="vertical">Vertical</option>
+                <option value="both">Horizontal + Vertical</option>
+              </select>
+              <p className="help-text">Flips are applied after rotation</p>
+            </div>
+
+            <div className="form-group">
               <label><i className="ri-cpu-line"></i> CPU Limit</label>
               <select className="select" value={cpuLimit} onChange={(e) => setCpuLimit(Number(e.target.value))}>
                 <option value={100}>100% (No limit)</option>
@@ -1280,24 +1341,44 @@ export default function App() {
                       <p>Click "Add Files" to select videos for conversion</p>
                     </div>
                   ) : (
-                    <div className="file-list">
-                      {queue.map((file, index) => (
-                        <div key={index} className="file-item">
-                          <i className="ri-movie-fill file-icon"></i>
-                          <div className="file-info">
-                            <div className="file-name">{file.name}</div>
-                            <div className="file-path">{file.path}</div>
-                          </div>
-                          <button
-                            className="button button-small button-danger button-icon-only"
-                            onClick={() => handleRemoveFile(index)}
-                            title="Remove"
-                          >
-                            <i className="ri-close-line"></i>
-                          </button>
-                        </div>
-                      ))}
+                <>
+                  {previewPath && (
+                    <div className="video-preview">
+                      <div className="video-preview-title">{getFileName(previewPath)}</div>
+                      <video
+                        className="video-preview-player"
+                        src={convertFileSrc(previewPath)}
+                        controls
+                        preload="metadata"
+                      />
                     </div>
+                  )}
+                  <div className="file-list">
+                    {queue.map((file, index) => (
+                      <div
+                        key={index}
+                        className={`file-item ${file.path === previewPath ? "file-item-selected" : ""}`}
+                        onClick={() => setPreviewPath(file.path)}
+                      >
+                        <i className="ri-movie-fill file-icon"></i>
+                        <div className="file-info">
+                          <div className="file-name">{file.name}</div>
+                          <div className="file-path">{file.path}</div>
+                        </div>
+                        <button
+                          className="button button-small button-danger button-icon-only"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFile(index);
+                          }}
+                          title="Remove"
+                        >
+                          <i className="ri-close-line"></i>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
                   )}
                 </div>
               )}

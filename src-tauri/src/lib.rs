@@ -76,6 +76,12 @@ struct StartConversionArgs {
     #[serde(alias = "cpuThreads")]
     cpu_threads: Option<u32>,
     preset: String,
+    #[serde(alias = "rotationDegrees", alias = "rotation")]
+    rotation: Option<u16>,
+    #[serde(alias = "flipHorizontal")]
+    flip_horizontal: Option<bool>,
+    #[serde(alias = "flipVertical")]
+    flip_vertical: Option<bool>,
     #[serde(alias = "isAdobePreset")]
     is_adobe_preset: Option<bool>,
 }
@@ -401,6 +407,9 @@ async fn start_conversion(
             gpu_index,
             cpu_threads: None,
             preset: preset.unwrap_or_else(|| "fast".to_string()),
+            rotation: None,
+            flip_horizontal: None,
+            flip_vertical: None,
             is_adobe_preset,
         }
     };
@@ -411,8 +420,14 @@ async fn start_conversion(
         gpu_index,
         cpu_threads,
         preset,
+        rotation,
+        flip_horizontal,
+        flip_vertical,
         is_adobe_preset,
     } = resolved;
+    let rotation = rotation.filter(|r| matches!(r, 0 | 90 | 180 | 270)).unwrap_or(0);
+    let flip_horizontal = flip_horizontal.unwrap_or(false);
+    let flip_vertical = flip_vertical.unwrap_or(false);
 
     if !std::path::Path::new(&input_file).exists() {
         return Err(AppError::Io(format!("Input file not found: {}", input_file)));
@@ -464,6 +479,9 @@ async fn start_conversion(
         cpu_threads,
         preset,
         is_adobe_preset.unwrap_or(false),
+        rotation,
+        flip_horizontal,
+        flip_vertical,
     )?;
     
     Ok(task_id)
