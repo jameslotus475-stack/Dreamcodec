@@ -25,7 +25,7 @@ export type AdobePreset =
 
 export interface GpuInfo {
   detected: boolean;
-  gpu_type: "Nvidia" | "Intel" | "Amd" | "Unknown" | "None";
+  gpu_type: "Nvidia" | "Intel" | "Amd" | "Apple" | "Unknown" | "None";
   name: string;
   available_encoders: EncoderInfo[];
 }
@@ -34,7 +34,7 @@ export interface EncoderInfo {
   name: string;
   description: string;
   codec: string;
-  gpuType: "Nvidia" | "Intel" | "Amd" | "CPU";
+  gpuType: "Nvidia" | "Intel" | "Amd" | "Apple" | "CPU";
 }
 
 export interface AppSettings {

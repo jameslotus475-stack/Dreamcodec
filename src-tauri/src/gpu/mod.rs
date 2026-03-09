@@ -23,6 +23,7 @@ pub enum GpuType {
     Nvidia,
     Intel,
     Amd,
+    Apple,
     Unknown,
     None,
 }
@@ -49,6 +50,7 @@ pub enum EncoderType {
     GpuNvidia,
     GpuAmd,
     GpuIntel,
+    GpuApple,
     Adobe,
 }
 
@@ -91,6 +93,8 @@ impl GpuDetector {
             GpuType::Nvidia
         } else if name_upper.contains("AMD") || name_upper.contains("RADEON") {
             GpuType::Amd
+        } else if name_upper.contains("APPLE") || name_upper.contains("M1") || name_upper.contains("M2") || name_upper.contains("M3") || name_upper.contains("M4") || name_upper.contains("M5") {
+            GpuType::Apple
         } else if name_upper.contains("INTEL")
             && (name_upper.contains("ARC")
                 || name_upper.contains("UHD")
@@ -118,6 +122,7 @@ impl GpuDetector {
         let name_upper = name.to_uppercase();
         let mut score = match gpu_type {
             GpuType::Nvidia => 300,
+            GpuType::Apple => 280,
             GpuType::Amd => 250,
             GpuType::Intel => 180,
             GpuType::Unknown => 100,
@@ -391,9 +396,10 @@ impl GpuDetector {
             let type_order = |e: &EncoderInfo| match e.encoder_type {
                 EncoderType::Cpu => 0,
                 EncoderType::GpuNvidia => 1,
-                EncoderType::GpuAmd => 2,
-                EncoderType::GpuIntel => 3,
-                EncoderType::Adobe => 4,
+                EncoderType::GpuApple => 2,
+                EncoderType::GpuAmd => 3,
+                EncoderType::GpuIntel => 4,
+                EncoderType::Adobe => 5,
             };
             type_order(a).cmp(&type_order(b))
         });
@@ -413,6 +419,9 @@ impl GpuDetector {
         // GPU encoders
         if name_lower.contains("nvenc") {
             return Some(EncoderType::GpuNvidia);
+        }
+        if name_lower.contains("videotoolbox") {
+            return Some(EncoderType::GpuApple);
         }
         if name_lower.contains("amf") || name_lower.contains("vaapi") && name_lower.contains("h264") {
             return Some(EncoderType::GpuAmd);
@@ -512,6 +521,18 @@ impl GpuDetector {
                 encoder_type: EncoderType::GpuNvidia,
             },
             EncoderInfo {
+                name: "h264_videotoolbox".to_string(),
+                description: "VideoToolbox H.264 Encoder".to_string(),
+                codec: "h264".to_string(),
+                encoder_type: EncoderType::GpuApple,
+            },
+            EncoderInfo {
+                name: "hevc_videotoolbox".to_string(),
+                description: "VideoToolbox HEVC encoder".to_string(),
+                codec: "hevc".to_string(),
+                encoder_type: EncoderType::GpuApple,
+            },
+            EncoderInfo {
                 name: "h264_amf".to_string(),
                 description: "AMD AMF H.264 Encoder".to_string(),
                 codec: "h264".to_string(),
@@ -589,6 +610,9 @@ pub fn get_encoder_display_name(encoder: &EncoderInfo) -> String {
         }
         EncoderType::GpuNvidia => {
             format!("{} (NVIDIA GPU) - {}", encoder.name, encoder.description)
+        }
+        EncoderType::GpuApple => {
+            format!("{} (Apple GPU) - {}", encoder.name, encoder.description)
         }
         EncoderType::GpuAmd => {
             format!("{} (AMD GPU) - {}", encoder.name, encoder.description)

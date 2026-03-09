@@ -15,6 +15,8 @@ export default function GpuInfo({ info, selectedEncoder }: GpuInfoProps) {
         return "gpu-badge-amd";
       case "Intel":
         return "gpu-badge-intel";
+      case "Apple":
+        return "gpu-badge-apple";
       default:
         return "gpu-badge-cpu";
     }
@@ -23,7 +25,8 @@ export default function GpuInfo({ info, selectedEncoder }: GpuInfoProps) {
   const isHardwareAccelerated = selectedEncoder && (
     selectedEncoder.includes("nvenc") ||
     selectedEncoder.includes("amf") ||
-    selectedEncoder.includes("qsv")
+    selectedEncoder.includes("qsv") ||
+    selectedEncoder.includes("videotoolbox")
   );
 
   // Get encoder type from the selected encoder
@@ -31,6 +34,7 @@ export default function GpuInfo({ info, selectedEncoder }: GpuInfoProps) {
     if (selectedEncoder.includes("nvenc")) return "NVIDIA NVENC";
     if (selectedEncoder.includes("amf")) return "AMD AMF";
     if (selectedEncoder.includes("qsv")) return "Intel QSV";
+    if (selectedEncoder.includes("videotoolbox")) return "Apple VideoToolbox";
     if (selectedEncoder === "libx264") return "H.264 (CPU)";
     if (selectedEncoder === "libx265") return "H.265 (CPU)";
     return "CPU";
@@ -53,6 +57,9 @@ export default function GpuInfo({ info, selectedEncoder }: GpuInfoProps) {
       if (info.gpu_type === "Intel") {
         return encoder.name.includes("qsv") || encoder.gpuType === "Intel";
       }
+      if (info.gpu_type === "Apple") {
+        return encoder.name.includes("videotoolbox") || encoder.gpuType === "Apple";
+      }
       return false;
     });
   };
@@ -74,6 +81,7 @@ export default function GpuInfo({ info, selectedEncoder }: GpuInfoProps) {
                   {info.gpu_type === "Nvidia" && "NVIDIA"}
                   {info.gpu_type === "Amd" && "AMD"}
                   {info.gpu_type === "Intel" && "Intel"}
+                  {info.gpu_type === "Apple" && "APPLE"}
                   {info.gpu_type === "Unknown" && "CPU"}
                   {info.gpu_type === "None" && "CPU"}
                 </span>

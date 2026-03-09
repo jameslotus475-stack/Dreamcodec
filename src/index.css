@@ -172,6 +172,56 @@ body {
   color: rgba(255, 255, 255, 0.8);
 }
 
+.gpu-badge-nvidia {
+  background: rgba(118, 185, 0, 0.15);
+  border: 1px solid rgba(118, 185, 0, 0.3);
+  color: #76b900;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.gpu-badge-amd {
+  background: rgba(237, 28, 36, 0.15);
+  border: 1px solid rgba(237, 28, 36, 0.3);
+  color: #ed1c24;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.gpu-badge-intel {
+  background: rgba(0, 104, 181, 0.15);
+  border: 1px solid rgba(0, 104, 181, 0.3);
+  color: #0068b5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.gpu-badge-apple {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.gpu-badge-cpu {
+  background: rgba(150, 150, 150, 0.15);
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  color: #969696;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
 .gpu-icon {
   font-size: 1.25rem;
 }

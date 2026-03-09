@@ -6,8 +6,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import StarBackground from "./components/StarBackground";
 import "remixicon/fonts/remixicon.css";
 
-type EncoderType = "Cpu" | "GpuNvidia" | "GpuAmd" | "GpuIntel" | "Adobe";
-type GpuType = "Nvidia" | "Intel" | "Amd" | "Unknown" | "None";
+type EncoderType = "Cpu" | "GpuNvidia" | "GpuAmd" | "GpuIntel" | "GpuApple" | "Adobe";
+type GpuType = "Nvidia" | "Intel" | "Amd" | "Apple" | "Unknown" | "None";
 
 interface Encoder {
   name: string;
@@ -328,6 +328,7 @@ export default function App() {
       case "GpuNvidia": return "NVIDIA GPU";
       case "GpuAmd": return "AMD GPU";
       case "GpuIntel": return "Intel GPU";
+      case "GpuApple": return "Apple GPU";
       case "Adobe": return "Professional";
       case "Cpu": return "CPU";
       default: return "Unknown";
@@ -342,6 +343,8 @@ export default function App() {
         return "AMD";
       case "Intel":
         return "Intel";
+      case "Apple":
+        return "Apple";
       case "Unknown":
         return "Unknown";
       case "None":
@@ -355,6 +358,7 @@ export default function App() {
     if (gpuType === "Nvidia") return enc.encoder_type === "GpuNvidia";
     if (gpuType === "Amd") return enc.encoder_type === "GpuAmd";
     if (gpuType === "Intel") return enc.encoder_type === "GpuIntel";
+    if (gpuType === "Apple") return enc.encoder_type === "GpuApple";
     return false;
   };
 
@@ -548,6 +552,8 @@ export default function App() {
             ? "AMD"
             : adapter.gpu_type === "Intel"
             ? "Intel"
+            : adapter.gpu_type === "Apple"
+            ? "Apple"
             : "GPU";
         options.push({
           value: adapter.id,

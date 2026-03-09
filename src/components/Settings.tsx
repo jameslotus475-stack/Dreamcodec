@@ -80,6 +80,7 @@ export default function Settings({
     if (encoderName.includes("nvenc")) return "gpu-badge-nvidia";
     if (encoderName.includes("amf")) return "gpu-badge-amd";
     if (encoderName.includes("qsv")) return "gpu-badge-intel";
+    if (encoderName.includes("videotoolbox")) return "gpu-badge-apple";
     return "gpu-badge-cpu";
   };
 
@@ -328,6 +329,7 @@ export default function Settings({
                 {settings.encoder.includes("nvenc") && "NVIDIA"}
                 {settings.encoder.includes("amf") && "AMD"}
                 {settings.encoder.includes("qsv") && "Intel"}
+                {settings.encoder.includes("videotoolbox") && "Apple"}
                 {(settings.encoder === "libx264" || settings.encoder === "libx265") && "CPU"}
               </span>
             </div>
@@ -381,6 +383,10 @@ export default function Settings({
           <li className="flex items-center gap-2">
             <span className="gpu-badge-intel">Intel</span>
             <span>QSV - 4th Gen Core+</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="gpu-badge-apple">Apple</span>
+            <span>VideoToolbox - Apple Silicon / M-series</span>
           </li>
           <li className="flex items-center gap-2">
             <span className="gpu-badge-cpu">CPU</span>

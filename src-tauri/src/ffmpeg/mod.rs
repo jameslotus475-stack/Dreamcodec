@@ -919,7 +919,8 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
     let is_nvenc = encoder.contains("nvenc");
     let is_amf = encoder.contains("amf");
     let is_qsv = encoder.contains("qsv");
-    let is_gpu_encoder = is_nvenc || is_amf || is_qsv;
+    let is_videotoolbox = encoder.contains("videotoolbox");
+    let is_gpu_encoder = is_nvenc || is_amf || is_qsv || is_videotoolbox;
     // GPU encoders: 3 GPU attempts + 1 CPU software fallback = 4
     // CPU encoders: 1 attempt only
     let max_attempts: usize = if is_gpu_encoder { 4 } else { 1 };
@@ -1058,6 +1059,8 @@ async fn run_conversion_task(task_arc: Arc<Mutex<ConversionTask>>) {
                         "NVENC + CUDA hardware decode"
                     } else if is_amf {
                         "AMF + hardware decode"
+                    } else if is_videotoolbox {
+                        "VideoToolbox + hardware decode"
                     } else {
                         "QSV + hardware decode"
                     };
